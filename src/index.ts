@@ -2,65 +2,302 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { z } from "zod";
 
-function createServer() {
-	const server = new McpServer({
-		name: "Authless Calculator",
-		version: "1.0.0",
-	});
-
-	server.registerTool(
-		"add",
-		{ inputSchema: z.object({ a: z.number(), b: z.number() }) },
-		async ({ a, b }) => ({
-			content: [{ type: "text", text: String(a + b) }],
-		}),
-	);
-
-	server.registerTool(
-		"calculate",
-		{
-			inputSchema: z.object({
-				operation: z.enum(["add", "subtract", "multiply", "divide"]),
-				a: z.number(),
-				b: z.number(),
-			}),
-		},
-		async ({ operation, a, b }) => {
-			let result: number;
-			switch (operation) {
-				case "add":
-					result = a + b;
-					break;
-				case "subtract":
-					result = a - b;
-					break;
-				case "multiply":
-					result = a * b;
-					break;
-				case "divide":
-					if (b === 0)
-						return {
-							content: [
-								{
-									type: "text",
-									text: "Error: Cannot divide by zero",
-								},
-							],
-						};
-					result = a / b;
-					break;
-			}
-			return { content: [{ type: "text", text: String(result) }] };
-		},
-	);
-
-	return server;
+interface Env {
+  AGENT_PROFILE_URL: string;
 }
 
-const handler = createMcpHandler(createServer);
+function createServer(env: Env) {
+  const server = new McpServer({
+    name: "Global Catalog Search",
+    version: "1.0.0"
+  });
+
+  server.registerTool(
+    "search_products",
+    {
+      title: "Global Product Search",
+      description:
+        "Search the Shopify global catalog using a normal shopping request, optional product image, price range, category, color, size, gender, stock status, condition, ratings, and delivery preferences. Returns up to four display-ready product results.",
+      inputSchema: z.object({
+        search: z
+          .string()
+          .optional()
+          .describe(
+            "What the shopper wants to find. Example: comfortable black trail running shoes or black dress for a wedding. Default: T shirts."
+          ),
+        image: z
+          .object({
+            content_type: z
+              .string()
+              .describe("Image MIME type. Example: image/jpeg, image/png, or image/webp."),
+            data: z
+              .string()
+              .describe("Base64-encoded image data used to find visually similar products.")
+          })
+          .optional()
+          .describe("Optional image upload for visual product similarity search."),
+        min_price: z
+          .number()
+          .optional()
+          .describe("Optional minimum price in minor currency units. Example: 5000 means $50.00 in USD."),
+        max_price: z
+          .number()
+          .optional()
+          .describe("Optional maximum price in minor currency units. Example: 25000 means $250.00 in USD."),
+        in_stock: z
+          .boolean()
+          .optional()
+          .describe("Show only currently available products. Default: true."),
+        condition: z
+          .array(z.string())
+          .optional()
+          .describe("Optional accepted product conditions. Example: new, used, or refurbished."),
+        categories: z
+          .array(z.string())
+          .optional()
+          .describe("Optional product category names. Example: Dresses, Running Shoes, or Bras."),
+        color: z
+          .array(z.string())
+          .optional()
+          .describe("Optional preferred colors. Example: Black, Red, or Gray."),
+        size: z
+          .array(z.string())
+          .optional()
+          .describe("Optional preferred sizes. Example: S, M, 8, 10, or 10.5."),
+        gender: z
+          .array(z.string())
+          .optional()
+          .describe("Optional target gender. Example: Women, Men, Kids, or Unisex."),
+        min_rating: z
+          .number()
+          .optional()
+          .describe("Optional minimum product rating from 1 through 5. Example: 4.5."),
+        min_reviews: z
+          .number()
+          .optional()
+          .describe("Optional minimum number of product reviews. Example: 10."),
+        ships_to: z
+          .object({
+            country: z.string().optional().describe("Two-letter destination country code. Example: US."),
+            region: z.string().optional().describe("Destination state, province, or region. Example: CA."),
+            postal_code: z.string().optional().describe("Destination postal code. Example: 91502.")
+          })
+          .optional()
+          .describe("Optional delivery destination used to find shippable products."),
+        ships_from: z
+          .array(z.string())
+          .optional()
+          .describe("Optional origin country preferences. Example: US or CA."),
+        language: z
+          .string()
+          .optional()
+          .describe("Result language and formatting locale. Default: en."),
+        currency: z
+          .string()
+          .optional()
+          .describe("Buyer currency code. Default: USD."),
+        intent: z
+          .string()
+          .optional()
+          .describe("Optional shopping context to improve relevance. Example: supportive shoes for daily trail runs."),
+        view: z
+          .string()
+          .optional()
+          .describe("Optional catalog result view. Default: offer."),
+        limit: z
+          .number()
+          .optional()
+          .describe("Optional result count. Default and maximum: 4."),
+        cursor: z
+          .string()
+          .optional()
+          .describe("Optional next-page cursor from a previous result.")
+      })
+    },
+    async (input) => {
+      const filters: Record<string, unknown> = {
+        available: input.in_stock ?? true
+      };
+
+      if (input.condition?.length) {
+        filters.condition = input.condition;
+      }
+
+      if (input.ships_to) {
+        filters.ships_to = input.ships_to;
+      }
+
+      if (input.ships_from?.length) {
+        filters.ships_from = input.ships_from.map((country) => ({ country }));
+      }
+
+      if (input.min_price !== undefined || input.max_price !== undefined) {
+        filters.price = {
+          ...(input.min_price !== undefined ? { min: input.min_price } : {}),
+          ...(input.max_price !== undefined ? { max: input.max_price } : {})
+        };
+      }
+
+      if (input.categories?.length) {
+        filters.categories = input.categories.map((name) => ({ name }));
+      }
+
+      const attributes = [
+        ...(input.color?.length
+          ? [{ name: "Color", values: input.color }]
+          : []),
+        ...(input.size?.length
+          ? [{ name: "Size", values: input.size }]
+          : []),
+        ...(input.gender?.length
+          ? [{ name: "Target gender", values: input.gender }]
+          : [])
+      ];
+
+      if (attributes.length) {
+        filters.attributes = attributes;
+      }
+
+      if (input.min_rating !== undefined || input.min_reviews !== undefined) {
+        filters.rating = {
+          variant: {
+            ...(input.min_rating !== undefined ? { min: input.min_rating } : {}),
+            ...(input.min_reviews !== undefined ? { min_count: input.min_reviews } : {})
+          }
+        };
+      }
+
+      const catalog: Record<string, unknown> = {
+        query: input.search?.trim() || "T shirts",
+        catalog_id: "01m0tvvbpma8kd0xgtp9w32k0a",
+        context: {
+          address_country: input.ships_to?.country || "US",
+          address_region: input.ships_to?.region || "CA",
+          postal_code: input.ships_to?.postal_code || "91502",
+          language: input.language || "en",
+          currency: input.currency || "USD",
+          intent: input.intent || input.search || "Product search"
+        },
+        filters,
+        view: input.view || "offer",
+        pagination: {
+          limit: Math.min(Math.max(input.limit || 4, 1), 4),
+          ...(input.cursor ? { cursor: input.cursor } : {})
+        }
+      };
+
+      if (input.image?.content_type && input.image.data) {
+        catalog.like = [
+          {
+            image: {
+              content_type: input.image.content_type,
+              data: input.image.data
+            }
+          }
+        ];
+      }
+
+      const upstream = await fetch("https://catalog.shopify.com/api/ucp/mcp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "MCP-Protocol-Version": "2026-03-26",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "tools/call",
+          id: 1,
+          params: {
+            name: "search_catalog",
+            arguments: {
+              meta: {
+                "ucp-agent": {
+                  profile: env.AGENT_PROFILE_URL
+                }
+              },
+              catalog
+            }
+          }
+        })
+      });
+
+      const shopifyResponse = await upstream.json() as any;
+      const products = shopifyResponse.result?.structuredContent?.products || [];
+      const pagination = shopifyResponse.result?.structuredContent?.pagination || {};
+      const messages = shopifyResponse.result?.structuredContent?.messages || [];
+      const context = catalog.context as {
+        language: string;
+        currency: string;
+      };
+
+      const markdown = [
+        "# Global Catalog Results",
+        "",
+        ...products.flatMap((product: any, index: number) => {
+          const variant = product.variants?.[0] || {};
+          const media = variant.media?.[0] || product.media?.[0] || {};
+          const price = variant.price || product.price_range?.min || {};
+          const seller = variant.seller || product.seller || {};
+          const rating = variant.rating || product.rating || {};
+          const title = product.title || variant.title || "Product";
+          const description = variant.description?.plain || product.description?.plain || "";
+          const options = (variant.options || [])
+            .map((option: any) => `${option.name || "Option"}: ${option.label || ""}`)
+            .filter(Boolean)
+            .join(" · ");
+          const priceText = typeof price.amount === "number"
+            ? new Intl.NumberFormat(context.language, {
+                style: "currency",
+                currency: price.currency || context.currency
+              }).format(price.amount / 100)
+            : "Price unavailable";
+          const ratingText = typeof rating.value === "number"
+            ? `Rating: ${rating.value}/${rating.scale_max || 5}${typeof rating.count === "number" ? ` (${rating.count.toLocaleString()} reviews)` : ""}`
+            : "";
+
+          return [
+            `## ${index + 1}. ${title}`,
+            "",
+            media.url ? `![${media.alt_text || title}](${media.url})` : "",
+            "",
+            `**${priceText}**${seller.name ? ` · ${seller.name}` : ""}`,
+            ratingText,
+            options,
+            "",
+            description,
+            "",
+            variant.url ? `[View product](${variant.url})` : "",
+            variant.checkout_url ? `[Buy now](${variant.checkout_url})` : "",
+            ""
+          ].filter(Boolean);
+        }),
+        products.length === 0 ? "No matching products found." : "",
+        pagination.has_next_page ? "More results are available." : "",
+        ...messages
+          .map((message: any) => message.content || message.message || "")
+          .filter(Boolean)
+          .map((message: string) => `> ${message}`)
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: markdown
+          }
+        ]
+      };
+    }
+  );
+
+  return server;
+}
 
 export default {
-	fetch(request: Request, env: Env, ctx: ExecutionContext) {
-		return handler(request, env, ctx);
-	},
+  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    return createMcpHandler(() => createServer(env))(request, env, ctx);
+  }
 } satisfies ExportedHandler<Env>;
