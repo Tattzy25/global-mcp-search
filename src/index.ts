@@ -5,7 +5,7 @@ import { z } from "zod";
 import { registerLookupCatalog } from "./tools/lookupCatalog";
 import { registerGetProduct } from "./tools/getProduct";
 
-interface Env {
+export interface Env {
   AGENT_PROFILE_URL: string;
 }
 
@@ -20,17 +20,7 @@ function createServer(env: Env) {
     {
       title: "Global Product Search",
       description:
-        "Searches for products across all Shopify merchants.
-
-The response conforms to the UCP catalog search 
-response
-, including a UCP metadata envelope; products with title, description, price range (minor units), media, and variants.
-
-When to use:
-
-A customer asks "I'm looking for trail running shoes under $150."
-You need to find products matching criteria from any merchant.
-A customer wants to compare products across multiple stores..",
+      'Searches for products across all Shopify merchants. The response conforms to the UCP catalog search response, including a UCP metadata envelope; products with title, description, price range (minor units), media, and variants. EXAMPLE - A customer asks "Im looking for trail running shoes under $150. OR You need to find products matching criteria from any merchant. MAYBE EVEN A customer wants to compare products across multiple stores',
       inputSchema: z.object({
         search: z
           .string()

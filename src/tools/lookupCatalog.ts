@@ -139,16 +139,9 @@ export function registerLookupCatalog(server: McpServer, env: Env) {
             ""
           ].filter(Boolean);
         }),
-        products.length === 0 ? "No products found for the provided identifiers." : "",
-        ...messages
-          .map((msg: any) => {
-            if (msg.code === "not_found") {
-              return `> **Item Not Found:** ${msg.content}`;
-            }
-            return `> ${msg.content || msg.message || ""}`;
-          })
-          .filter(Boolean)
-
+        products.length === 0 ? "No products found." : "",
+        ...messages.map((msg: any) => `> ${msg.content || msg.message || ""}`)
+      ].filter(Boolean).join("\n");
       return { content: [{ type: "text" as const, text: markdown }] };
     }
   );
