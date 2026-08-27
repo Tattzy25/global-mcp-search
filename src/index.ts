@@ -17,14 +17,16 @@ function createServer(env: Env) {
     {
       title: "Global Product Search",
       description:
-        "Search the Shopify global catalog using a normal shopping request, optional product image, price range, category, color, size, gender, stock status, condition, ratings, and delivery preferences. Returns up to four display-ready product results.",
+        "Search the Shopify global catalog using a normal shopping request. Returns up to four display-ready product results.",
       inputSchema: z.object({
         search: z
           .string()
           .optional()
-          .describe(
-            "What the shopper wants to find. Example: comfortable black trail running shoes or black dress for a wedding. Default: T shirts."
-          ),
+          .describe("What the shopper wants to find. Example: comfortable black trail running shoes or heavy red hoodie."),
+        catalog_id: z
+          .string()
+          .optional()
+          .describe("Optional target Shopify catalog ID to scope the search to a specific merchant. Leave empty for open global search."),
         image: z
           .object({
             content_type: z
@@ -39,11 +41,11 @@ function createServer(env: Env) {
         min_price: z
           .number()
           .optional()
-          .describe("Optional minimum price in minor currency units. Example: 5000 means $50.00 in USD."),
+          .describe("Optional minimum price in minor currency units. Example: 5000 means $50.00."),
         max_price: z
           .number()
           .optional()
-          .describe("Optional maximum price in minor currency units. Example: 25000 means $250.00 in USD."),
+          .describe("Optional maximum price in minor currency units. Example: 15000 means $150.00."),
         in_stock: z
           .boolean()
           .optional()
@@ -55,19 +57,19 @@ function createServer(env: Env) {
         categories: z
           .array(z.string())
           .optional()
-          .describe("Optional product category names. Example: Dresses, Running Shoes, or Bras."),
+          .describe("Optional product category names. Example: Hoodies, Outerwear, or Electronics."),
         color: z
           .array(z.string())
           .optional()
-          .describe("Optional preferred colors. Example: Black, Red, or Gray."),
+          .describe("Optional preferred colors. Example: Red, Black, or Gray."),
         size: z
           .array(z.string())
           .optional()
-          .describe("Optional preferred sizes. Example: S, M, 8, 10, or 10.5."),
+          .describe("Optional preferred sizes. Example: S, M, L, XL, or 10."),
         gender: z
           .array(z.string())
           .optional()
-          .describe("Optional target gender. Example: Women, Men, Kids, or Unisex."),
+          .describe("Optional target gender. Example: Men, Women, Kids, or Unisex."),
         min_rating: z
           .number()
           .optional()
@@ -80,7 +82,7 @@ function createServer(env: Env) {
           .object({
             country: z.string().optional().describe("Two-letter destination country code. Example: US."),
             region: z.string().optional().describe("Destination state, province, or region. Example: CA."),
-            postal_code: z.string().optional().describe("Destination postal code. Example: 91502.")
+            postal_code: z.string().optional().describe("Destination postal code. Example: 90210.")
           })
           .optional()
           .describe("Optional delivery destination used to find shippable products."),
@@ -91,23 +93,23 @@ function createServer(env: Env) {
         language: z
           .string()
           .optional()
-          .describe("Result language and formatting locale. Default: en."),
+          .describe("Result language and formatting locale. Example: en."),
         currency: z
           .string()
           .optional()
-          .describe("Buyer currency code. Default: USD."),
+          .describe("Buyer currency code. Example: USD."),
         intent: z
           .string()
           .optional()
-          .describe("Optional shopping context to improve relevance. Example: supportive shoes for daily trail runs."),
+          .describe("Optional shopping context to improve relevance. Example: thick winter streetwear hoodie."),
         view: z
           .string()
           .optional()
-          .describe("Optional catalog result view. Default: offer."),
+          .describe("Optional catalog result view. Example: offer, product, or variant."),
         limit: z
           .number()
           .optional()
-          .describe("Optional result count. Default and maximum: 4."),
+          .describe("Optional result count. Maximum is 4."),
         cursor: z
           .string()
           .optional()
@@ -115,48 +117,28 @@ function createServer(env: Env) {
       })
     },
     async (input) => {
-      const filters: Record<string, unknown> = {
-        available: input.in_stock ?? true
-      };
+      const filters: Record<string, unknown> = {};
 
-      if (input.condition?.length) {
-        filters.condition = input.condition;
-      }
-
-      if (input.ships_to) {
-        filters.ships_to = input.ships_to;
-      }
-
-      if (input.ships_from?.length) {
-        filters.ships_from = input.ships_from.map((country) => ({ country }));
-      }
-
+      if (input.in_stock !== undefined) filters.available = input.in_stock;
+      if (input.condition?.length) filters.condition = input.condition;
+      if (input.ships_to) filters.ships_to = input.ships_to;
+      if (input.ships_from?.length) filters.ships_from = input.ships_from.map(country => ({ country }));
+      
       if (input.min_price !== undefined || input.max_price !== undefined) {
         filters.price = {
           ...(input.min_price !== undefined ? { min: input.min_price } : {}),
           ...(input.max_price !== undefined ? { max: input.max_price } : {})
         };
       }
-
-      if (input.categories?.length) {
-        filters.categories = input.categories.map((name) => ({ name }));
-      }
+      
+      if (input.categories?.length) filters.categories = input.categories.map(name => ({ name }));
 
       const attributes = [
-        ...(input.color?.length
-          ? [{ name: "Color", values: input.color }]
-          : []),
-        ...(input.size?.length
-          ? [{ name: "Size", values: input.size }]
-          : []),
-        ...(input.gender?.length
-          ? [{ name: "Target gender", values: input.gender }]
-          : [])
+        ...(input.color?.length ? [{ name: "Color", values: input.color }] : []),
+        ...(input.size?.length ? [{ name: "Size", values: input.size }] : []),
+        ...(input.gender?.length ? [{ name: "Target gender", values: input.gender }] : [])
       ];
-
-      if (attributes.length) {
-        filters.attributes = attributes;
-      }
+      if (attributes.length) filters.attributes = attributes;
 
       if (input.min_rating !== undefined || input.min_reviews !== undefined) {
         filters.rating = {
@@ -168,17 +150,16 @@ function createServer(env: Env) {
       }
 
       const catalog: Record<string, unknown> = {
-        query: input.search?.trim() || "T shirts",
-        catalog_id: "01m0tvvbpma8kd0xgtp9w32k0a",
+        query: input.search?.trim() || "",
         context: {
           address_country: input.ships_to?.country || "US",
-          address_region: input.ships_to?.region || "CA",
-          postal_code: input.ships_to?.postal_code || "91502",
           language: input.language || "en",
           currency: input.currency || "USD",
-          intent: input.intent || input.search || "Product search"
+          ...(input.intent ? { intent: input.intent } : {}),
+          ...(input.ships_to?.region ? { address_region: input.ships_to.region } : {}),
+          ...(input.ships_to?.postal_code ? { postal_code: input.ships_to.postal_code } : {})
         },
-        filters,
+        ...(Object.keys(filters).length > 0 ? { filters } : {}),
         view: input.view || "offer",
         pagination: {
           limit: Math.min(Math.max(input.limit || 4, 1), 4),
@@ -186,15 +167,12 @@ function createServer(env: Env) {
         }
       };
 
+      if (input.catalog_id) {
+        catalog.catalog_id = input.catalog_id;
+      }
+
       if (input.image?.content_type && input.image.data) {
-        catalog.like = [
-          {
-            image: {
-              content_type: input.image.content_type,
-              data: input.image.data
-            }
-          }
-        ];
+        catalog.like = [{ image: { content_type: input.image.content_type, data: input.image.data } }];
       }
 
       const upstream = await fetch("https://catalog.shopify.com/api/ucp/mcp", {
@@ -226,10 +204,8 @@ function createServer(env: Env) {
       const products = shopifyResponse.result?.structuredContent?.products || [];
       const pagination = shopifyResponse.result?.structuredContent?.pagination || {};
       const messages = shopifyResponse.result?.structuredContent?.messages || [];
-      const context = catalog.context as {
-        language: string;
-        currency: string;
-      };
+
+      const context = catalog.context as { language: string; currency: string; };
 
       const markdown = [
         "# Global Catalog Results",
@@ -246,12 +222,14 @@ function createServer(env: Env) {
             .map((option: any) => `${option.name || "Option"}: ${option.label || ""}`)
             .filter(Boolean)
             .join(" · ");
+
           const priceText = typeof price.amount === "number"
             ? new Intl.NumberFormat(context.language, {
                 style: "currency",
                 currency: price.currency || context.currency
               }).format(price.amount / 100)
             : "Price unavailable";
+
           const ratingText = typeof rating.value === "number"
             ? `Rating: ${rating.value}/${rating.scale_max || 5}${typeof rating.count === "number" ? ` (${rating.count.toLocaleString()} reviews)` : ""}`
             : "";
@@ -278,17 +256,10 @@ function createServer(env: Env) {
           .map((message: any) => message.content || message.message || "")
           .filter(Boolean)
           .map((message: string) => `> ${message}`)
-      ]
-        .filter(Boolean)
-        .join("\n");
+      ].filter(Boolean).join("\n");
 
       return {
-        content: [
-          {
-            type: "text" as const,
-            text: markdown
-          }
-        ]
+        content: [{ type: "text" as const, text: markdown }]
       };
     }
   );
