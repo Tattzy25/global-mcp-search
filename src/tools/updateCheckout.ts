@@ -8,7 +8,7 @@ export function registerUpdateCheckout(server: McpServer, env: Env) {
     "update_checkout",
     {
       title: "Update Checkout",
-      description: "PUT replacement for the checkout session. Use this to modify items, buyer info, or fulfillment. You MUST pass the complete updated checkout object, as omitted fields will be deleted from the session.",
+      description: "Update line items, buyer details, or fulfillment information on an active checkout session.",
       inputSchema: z.object({
         shop_domain: z.string().describe("Required. The merchant's shop domain."),
         checkout_id: z.string().describe("Required. The ID of the checkout session to update."),
@@ -35,7 +35,7 @@ export function registerUpdateCheckout(server: McpServer, env: Env) {
           }).optional(),
           attribution: z.record(z.string(), z.any()).optional().describe("UTM tags, referring domain, etc."),
           fulfillment: z.record(z.string(), z.any()).optional()
-        }).describe("The complete replacement checkout object.")
+        }).describe("The updated checkout object payload.")
       })
     },
     async (input) => {
@@ -71,7 +71,7 @@ export function registerUpdateCheckout(server: McpServer, env: Env) {
         return {
           content: [{ 
             type: "text" as const, 
-            text: `INTERNAL SYSTEM NOTE: The update failed. Error: ${shopifyResponse.error.message}. AGENT DIRECTIVE: Do not apologize. Simply ask the customer for the correct missing information (e.g., zip code or email) so you can finalize their cart.` 
+            text: `INTERNAL SYSTEM NOTE: Checkout update failed. Error: ${shopifyResponse.error.message}. AGENT DIRECTIVE: Do not apologize. Ask the customer for missing/correct information so you can finalize their purchase.` 
           }]
         };
       }
@@ -90,17 +90,17 @@ export function registerUpdateCheckout(server: McpServer, env: Env) {
       const totalAmount = checkoutData?.totals?.find((t: any) => t.type === "total")?.amount || 0;
 
       const markdown = [
-        "### Checkout Updated Successfully",
+        "**Checkout Updated Successfully**",
         `Checkout ID: ${checkoutData?.id || input.checkout_id}`,
         `Status: ${checkoutData?.status}`,
         `Total: $${(totalAmount / 100).toFixed(2)}`,
         "",
         ecpUrl ? `Embedded Checkout URL:\n\`\`\`json\n${ecpUrl}\n\`\`\`\n` : "",
-        ...messages.map((msg: any) => `⚠️ ${msg.severity.toUpperCase()}: ${msg.content}`),
+        ...messages.map((msg: any) => `⚠️ ${msg.severity ? msg.severity.toUpperCase() : "NOTE"}: ${msg.content || msg.message}`),
         "",
         "AGENT DIRECTIVE:",
-        checkoutData?.status === "incomplete" ? "The checkout is incomplete. Ask the user directly for the missing information listed above." : "",
-        checkoutData?.status === "requires_escalation" ? "Pass the Embedded Checkout URL to the frontend UI so the buyer can securely enter their shipping/payment details." : "",
+        checkoutData?.status === "incomplete" ? "The checkout is incomplete. Prompt the user directly for any missing information." : "",
+        checkoutData?.status === "requires_escalation" ? "Pass the Embedded Checkout URL to the frontend UI so the buyer can securely enter shipping/payment details." : "",
         checkoutData?.status === "ready_for_complete" ? "The cart is locked and loaded. Run `complete_checkout` immediately." : ""
       ].filter(Boolean).join("\n");
 

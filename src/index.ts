@@ -2,12 +2,21 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { z } from "zod";
 
-import { registerCreateCheckout } from "./tools/createCheckout";
-import { registerCompleteCheckout } from "./tools/completeCheckout";
-import { registerUpdateCheckout } from "./tools/updateCheckout";
-import { registerCancelCheckout } from "./tools/cancelCheckout";
+// Catalog Tools
 import { registerLookupCatalog } from "./tools/lookupCatalog";
 import { registerGetProduct } from "./tools/getProduct";
+
+// Cart Tools
+import { registerCreateCart } from "./tools/createCart";
+import { registerGetCart } from "./tools/getCart";
+import { registerUpdateCart } from "./tools/updateCart";
+
+// Checkout Tools
+import { registerCreateCheckout } from "./tools/createCheckout";
+import { registerUpdateCheckout } from "./tools/updateCheckout";
+import { registerCompleteCheckout } from "./tools/completeCheckout";
+import { registerCancelCheckout } from "./tools/cancelCheckout";
+
 import { getAccessToken } from "./auth";
 
 export interface Env {
@@ -446,12 +455,20 @@ function createServer(env: Env) {
   }
 );
 
-  registerLookupCatalog(server, env);
-  registerGetProduct(server, env);
-  registerCreateCheckout(server, env);
-  registerCompleteCheckout(server, env);
-  registerUpdateCheckout(server, env);
-  registerCancelCheckout(server, env);
+  // Register Catalog
+registerLookupCatalog(server, env);
+registerGetProduct(server, env);
+
+// Register Cart
+registerCreateCart(server, env);
+registerGetCart(server, env);
+registerUpdateCart(server, env);
+
+// Register Checkout
+registerCreateCheckout(server, env);
+registerUpdateCheckout(server, env);
+registerCompleteCheckout(server, env);
+registerCancelCheckout(server, env);
 
   return server;
 }
