@@ -1,4 +1,4 @@
 allowBuilds:
-  core-js-pure: true
-  esbuild: true
-  workerd: true
+    core-js-pure: true
+    esbuild: true
+    workerd: true
