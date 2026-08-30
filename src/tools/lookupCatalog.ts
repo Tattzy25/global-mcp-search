@@ -1,7 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { Env } from "../index";
-import { getAccessToken } from "../auth";
 
 export function registerLookupCatalog(server: McpServer, env: Env) {
   server.registerTool(
@@ -90,16 +89,14 @@ export function registerLookupCatalog(server: McpServer, env: Env) {
 
       if (input.view) catalog.view = input.view;
 
-            // Get a fresh access token for this lookup
-      const accessToken = await getAccessToken(env);
-
       const upstream = await fetch("https://catalog.shopify.com/api/ucp/mcp", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "MCP-Protocol-Version": "2026-04-08",
-          "Accept": "application/json",
-          "Authorization": `Bearer ${accessToken}`
+  "Content-Type": "application/json",
+  "MCP-Protocol-Version": "2026-04-08", // FIXED from 2026-03-26
+  "Accept": "application/json",
+  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Cache-Control": "public, max-age=3600"
         },
         body: JSON.stringify({
           jsonrpc: "2.0",

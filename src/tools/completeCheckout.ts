@@ -63,14 +63,13 @@ export function registerCompleteCheckout(server: McpServer, env: Env) {
       const checkoutData = shopifyResponse.result?.structuredContent;
       const order = checkoutData?.order;
 
-      // Handle Escalation (Buyer must finish in secure webview)
-      if (checkoutData?.status === "requires_escalation" && checkoutData?.continue_url) {
-        let ecpUrl = checkoutData.continue_url;
-        const url = new URL(ecpUrl);
-        url.searchParams.set("ec_version", "2026-01-23");
-        url.searchParams.set("ec_delegate", "fulfillment.address_change,payment.instruments_change,payment.credential");
-        
-        return {
+         if (checkoutData?.status === "requires_escalation" && checkoutData?.continue_url) {
+     let ecpUrl = checkoutData.continue_url;
+     const url = new URL(ecpUrl);
+     url.searchParams.set("ec_version", "2026-01-23");
+     url.searchParams.set("ec_auth", accessToken);
+     url.searchParams.set("ec_delegate", "fulfillment.address_change,payment.instruments_change,payment.credential");
+     return {
           content: [{ 
             type: "text" as const, 
             text: `INTERNAL SYSTEM NOTE: The merchant requires secure buyer verification. AGENT DIRECTIVE: Hand off the following Embedded Checkout URL to the frontend UI so the customer can click to pay. URL: ${url.toString()}` 

@@ -141,13 +141,14 @@ export function registerCreateCheckout(server: McpServer, env: Env) {
       }
 
       // Construct the Embedded Checkout Protocol (ECP) URL cleanly
-      let ecpUrl = checkoutData.continue_url;
-      if (ecpUrl) {
-        const url = new URL(ecpUrl);
-        url.searchParams.set("ec_version", "2026-01-23");
-        url.searchParams.set("ec_delegate", "fulfillment.address_change,payment.instruments_change,payment.credential");
-        ecpUrl = url.toString();
-      }
+   let ecpUrl = checkoutData.continue_url;
+   if (ecpUrl) {
+     const url = new URL(ecpUrl);
+     url.searchParams.set("ec_version", "2026-01-23");
+     url.searchParams.set("ec_auth", accessToken);
+     url.searchParams.set("ec_delegate", "fulfillment.address_change,payment.instruments_change,payment.credential");
+     ecpUrl = url.toString();
+   }
 
       // Format a clean, actionable, emoji-free response for the LLM Agent
       const statusText = checkoutData.status === "requires_escalation" 
