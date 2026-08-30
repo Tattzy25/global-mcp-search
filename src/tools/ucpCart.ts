@@ -46,7 +46,7 @@ export function toShopUrl(shopDomain: string): string {
 
 export function toUcpCart(cart: CartInput) {
 	return {
-		lineitems: cart.line_items.map((line) => ({
+		line_items: cart.line_items.map((line) => ({
 			quantity: line.quantity,
 			item: {
 				id: line.item.id,
@@ -56,13 +56,13 @@ export function toUcpCart(cart: CartInput) {
 			? {
 					context: {
 						...(cart.context.address_country
-							? { addresscountry: cart.context.address_country }
+							? { address_country: cart.context.address_country }
 							: {}),
 						...(cart.context.address_region
-							? { addressregion: cart.context.address_region }
+							? { address_region: cart.context.address_region }
 							: {}),
 						...(cart.context.postal_code
-							? { postalcode: cart.context.postal_code }
+							? { postal_code: cart.context.postal_code }
 							: {}),
 					},
 				}

@@ -33,5 +33,10 @@
 	"preview_urls": false,
 	"vars": {
 		"SHOPIFY_CATALOG_ID": "01m162j10csep1p5vz4tnkegch",
+		"AGENT_PROFILE_URL": "https://agent5089733.facetimefy.com/ucp/agent-profiles/2026-04-08/valid-with-capabilities.json"
 	},
+	"secrets": [
+		"SHOPIFY_CLIENT_ID",
+		"SHOPIFY_CLIENT_SECRET"
+	]
 }

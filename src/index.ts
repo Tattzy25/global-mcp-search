@@ -331,18 +331,19 @@ function createServer(env: Env) {
 					...(input.cursor ? { cursor: input.cursor } : {}),
 				},
 			};
-			// NEW: Map similarity search to UCP 'like' parameter
+			// UCP-compliant similarity search: map to 'like' parameter
 			if (input.like?.length) {
 				catalog.like = input.like;
 			} else if (input.image) {
 				catalog.like = [{ image: input.image }];
 			}
 
-			const upstream = await fetch("https://catalog.shopify.com/api/ucp/mcp", {
+			// Remove nonessential constraints on empty results - progressive relaxation
+			let upstream = await fetch("https://catalog.shopify.com/api/ucp/mcp", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
-					"MCP-Protocol-Version": "2026-04-08", // FIXED from 2026-03-26
+					"MCP-Protocol-Version": "2026-04-08",
 					Accept: "application/json",
 					"User-Agent":
 						"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -366,8 +367,100 @@ function createServer(env: Env) {
 				}),
 			});
 
-			const shopifyResponse = (await upstream.json()) as any;
-			const products = shopifyResponse.result?.structuredContent?.products || [];
+			let shopifyResponse = (await upstream.json()) as any;
+			let products = shopifyResponse.result?.structuredContent?.products || [];
+
+			// Progressive constraint relaxation for better agent UX
+			if (products.length === 0 && input.search) {
+				const relaxedCatalog = { ...catalog };
+				const relaxedFilters = { ...(relaxedCatalog.filters as any) || {} };
+
+				// First relax: remove color constraint
+				if (relaxedFilters.attributes) {
+					relaxedFilters.attributes = (relaxedFilters.attributes as any[]).filter(
+						(attr: any) => attr.name !== "Color",
+					);
+					if (relaxedFilters.attributes.length === 0) {
+						delete relaxedFilters.attributes;
+					}
+					relaxedCatalog.filters = relaxedFilters;
+				}
+
+				upstream = await fetch("https://catalog.shopify.com/api/ucp/mcp", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						"MCP-Protocol-Version": "2026-04-08",
+						Accept: "application/json",
+						"User-Agent":
+							"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+						"Cache-Control": "public, max-age=3600",
+					},
+					body: JSON.stringify({
+						jsonrpc: "2.0",
+						method: "tools/call",
+						id: 1,
+						params: {
+							name: "search_catalog",
+							arguments: {
+								meta: {
+									"ucp-agent": {
+										profile: env.AGENT_PROFILE_URL,
+									},
+								},
+								catalog: relaxedCatalog,
+							},
+						},
+					}),
+				});
+
+				shopifyResponse = (await upstream.json()) as any;
+				products = shopifyResponse.result?.structuredContent?.products || [];
+
+				// Second relax: remove size constraint if still no results
+				if (products.length === 0 && (relaxedCatalog.filters as any)?.attributes) {
+					const twiceRelaxedFilters = { ...(relaxedCatalog.filters as any) };
+					twiceRelaxedFilters.attributes = (
+						twiceRelaxedFilters.attributes as any[]
+					).filter((attr: any) => attr.name !== "Size");
+					if (twiceRelaxedFilters.attributes.length === 0) {
+						delete twiceRelaxedFilters.attributes;
+					}
+					relaxedCatalog.filters = twiceRelaxedFilters;
+
+					upstream = await fetch("https://catalog.shopify.com/api/ucp/mcp", {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							"MCP-Protocol-Version": "2026-04-08",
+							Accept: "application/json",
+							"User-Agent":
+								"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+							"Cache-Control": "public, max-age=3600",
+						},
+						body: JSON.stringify({
+							jsonrpc: "2.0",
+							method: "tools/call",
+							id: 1,
+							params: {
+								name: "search_catalog",
+								arguments: {
+									meta: {
+										"ucp-agent": {
+											profile: env.AGENT_PROFILE_URL,
+										},
+									},
+									catalog: relaxedCatalog,
+								},
+							},
+						}),
+					});
+
+					shopifyResponse = (await upstream.json()) as any;
+					products = shopifyResponse.result?.structuredContent?.products || [];
+				}
+			}
+
 			const pagination = shopifyResponse.result?.structuredContent?.pagination || {};
 			const messages = shopifyResponse.result?.structuredContent?.messages || [];
 
@@ -490,6 +583,14 @@ function createServer(env: Env) {
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+		const url = new URL(request.url);
+
+		// Agent profile is hosted externally at the UCP-compliant static URL
+		// Redirect any requests to /.well-known/agent-profile.json to the canonical profile
+		if (url.pathname === "/.well-known/agent-profile.json") {
+			return Response.redirect(env.AGENT_PROFILE_URL, 302);
+		}
+
 		// 1. Extract the user's Shop access token from the request headers (if they are signed in)
 		const shopAccessToken = request.headers.get("x-shop-access-token") || undefined;
 
