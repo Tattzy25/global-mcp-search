@@ -10,6 +10,7 @@ import { registerGetProduct } from "./tools/getProduct";
 import { registerCreateCart } from "./tools/createCart";
 import { registerGetCart } from "./tools/getCart";
 import { registerUpdateCart } from "./tools/updateCart";
+import { registerCancelCart } from "./tools/cancelCart";
 
 // Checkout Tools
 import { registerCreateCheckout } from "./tools/createCheckout";
@@ -326,7 +327,7 @@ function createServer(env: Env) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "MCP-Protocol-Version": "2026-03-26",
+        "MCP-Protocol-Version": "2026-04-08",
         "Accept": "application/json",
         "Authorization": `Bearer ${accessToken}`
       },
@@ -463,6 +464,7 @@ registerGetProduct(server, env);
 registerCreateCart(server, env);
 registerGetCart(server, env);
 registerUpdateCart(server, env);
+registerCancelCart(server, env);
 
 // Register Checkout
 registerCreateCheckout(server, env);

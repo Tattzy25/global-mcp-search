@@ -100,7 +100,7 @@ export function registerGetProduct(server: McpServer, env: Env) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "MCP-Protocol-Version": "2026-03-26",
+          "MCP-Protocol-Version": "2026-04-08",
           "Accept": "application/json",
           "Authorization": `Bearer ${accessToken}`
         },

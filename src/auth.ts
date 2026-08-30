@@ -41,7 +41,8 @@ export async function getAccessToken(env: Env): Promise<string> {
         body: new URLSearchParams({
           grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
           assertion: jwtGrant,
-          scope: "dev.ucp.shopping.catalog.search:read dev.ucp.shopping.catalog.lookup:read dev.ucp.shopping.cart:manage dev.ucp.shopping.checkout:manage",
+          // ADDED: dev.ucp.shopping.order:read and dev.ucp.shopping.order:manage
+          scope: "dev.ucp.shopping.catalog.search:read dev.ucp.shopping.catalog.lookup:read dev.ucp.shopping.cart:manage dev.ucp.shopping.checkout:manage dev.ucp.shopping.order:read dev.ucp.shopping.order:manage",
           client_id: env.SHOPIFY_CLIENT_ID,
           client_secret: env.SHOPIFY_CLIENT_SECRET,
         }).toString(),
@@ -74,7 +75,8 @@ export async function getAccessToken(env: Env): Promise<string> {
       client_id: env.SHOPIFY_CLIENT_ID,
       client_secret: env.SHOPIFY_CLIENT_SECRET,
       grant_type: "client_credentials",
-      scope: "dev.ucp.shopping.catalog.search:read dev.ucp.shopping.catalog.lookup:read dev.ucp.shopping.cart:manage dev.ucp.shopping.checkout:manage"
+      // ADDED: dev.ucp.shopping.order:read and dev.ucp.shopping.order:manage
+      scope: "dev.ucp.shopping.catalog.search:read dev.ucp.shopping.catalog.lookup:read dev.ucp.shopping.cart:manage dev.ucp.shopping.checkout:manage dev.ucp.shopping.order:read dev.ucp.shopping.order:manage"
     }),
   });
 

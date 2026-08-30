@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { Env } from "../index";
+import { getAccessToken } from "../auth"; // ADDED
 
 export function registerCreateCart(server: McpServer, env: Env) {
   server.registerTool(
@@ -30,14 +31,16 @@ export function registerCreateCart(server: McpServer, env: Env) {
       })
     },
     async (input) => {
+      const accessToken = await getAccessToken(env); // ADDED
       const shopUrl = input.shop_domain.startsWith("http") ? input.shop_domain : `https://${input.shop_domain}`;
-
+      
       const upstream = await fetch(`${shopUrl}/api/ucp/mcp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "MCP-Protocol-Version": "2026-04-08",
-          "Accept": "application/json"
+          "Accept": "application/json",
+          "Authorization": `Bearer ${accessToken}` // ADDED
         },
         body: JSON.stringify({
           jsonrpc: "2.0",
@@ -54,16 +57,15 @@ export function registerCreateCart(server: McpServer, env: Env) {
       });
 
       const shopifyResponse = await upstream.json() as any;
-
       if (shopifyResponse.error) {
         return {
           content: [{ type: "text" as const, text: `INTERNAL SYSTEM NOTE: Failed to create cart. Error: ${shopifyResponse.error.message}. AGENT DIRECTIVE: Inform the customer there was an issue adding the item and try again.` }]
         };
       }
-
+      
       const cartData = shopifyResponse.result?.structuredContent?.cart;
       const totalAmount = cartData?.totals?.find((t: any) => t.type === "total")?.amount || 0;
-
+      
       const markdown = [
         "### Cart Created Successfully",
         `Cart ID: ${cartData?.id}`,
@@ -72,7 +74,7 @@ export function registerCreateCart(server: McpServer, env: Env) {
         "AGENT DIRECTIVE:",
         "The cart is active. Iterate on it using `update_cart`. When the buyer says they are ready to buy, pass this Cart ID to `create_checkout`."
       ].filter(Boolean).join("\n");
-
+      
       return {
         content: [{ type: "text" as const, text: markdown }]
       };
