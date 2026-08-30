@@ -1,19 +1,29 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { Env } from "../index";
+import { getAccessToken } from "../auth";
 
 export function registerLookupCatalog(server: McpServer, env: Env) {
   server.registerTool(
     "lookup_catalog",
     {
-      title: "Lookup Catalog Items",
-      description: "Retrieves specific products or variants by identifier from across all Shopify merchants. Use when resolving IDs or URLs.",
+      title: "Resolve Shopify Product URLs and IDs",
+      description: [
+  "Use this tool FIRST when you have a specific Shopify product URL, variant URL, product ID, variant ID, or multiple known product references.",
+  "This is the REQUIRED URL-resolution tool.",
+  "For every http or https Shopify product or variant URL, call lookup_catalog before get_product.",
+  "DO NOT send a URL directly to get_product.",
+  "Use the returned product or variant identifier with get_product only when you need full details, option availability, or variant selection.",
+  "This tool can resolve one to fifty references in one request."
+].join(" "),
       inputSchema: z.object({
         ids: z
           .array(z.string())
           .min(1)
           .max(50)
-          .describe("Required. Array of product or variant identifiers (1 to 50). Accepts gid:// or http/https URLs."),
+          .describe(
+  "Required. One to fifty known references. Accepts gid://shopify/p/{upid}, gid://shopify/ProductVariant/{id}, and full http/https Shopify product or variant URLs. If the input is a URL, this is the correct tool. Do not call get_product with URLs."
+),
         in_stock: z
           .boolean()
           .optional()
@@ -80,18 +90,32 @@ export function registerLookupCatalog(server: McpServer, env: Env) {
 
       if (input.view) catalog.view = input.view;
 
+            // Get a fresh access token for this lookup
+      const accessToken = await getAccessToken(env);
+
       const upstream = await fetch("https://catalog.shopify.com/api/ucp/mcp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "MCP-Protocol-Version": "2026-03-26",
-          "Accept": "application/json"
+          "Accept": "application/json",
+          "Authorization": `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "tools/call",
           id: 2,
-          params: { name: "lookup_catalog", arguments: { meta: { "ucp-agent": { profile: env.AGENT_PROFILE_URL } }, catalog } }
+          params: {
+            name: "lookup_catalog",
+            arguments: {
+              meta: {
+                "ucp-agent": {
+                  profile: env.AGENT_PROFILE_URL
+                }
+              },
+              catalog
+            }
+          }
         })
       });
 
