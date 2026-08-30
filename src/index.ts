@@ -2,6 +2,10 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { z } from "zod";
 
+import { registerCreateCheckout } from "./tools/createCheckout";
+import { registerCompleteCheckout } from "./tools/completeCheckout";
+import { registerUpdateCheckout } from "./tools/updateCheckout";
+import { registerCancelCheckout } from "./tools/cancelCheckout";
 import { registerLookupCatalog } from "./tools/lookupCatalog";
 import { registerGetProduct } from "./tools/getProduct";
 import { getAccessToken } from "./auth";
@@ -444,6 +448,10 @@ function createServer(env: Env) {
 
   registerLookupCatalog(server, env);
   registerGetProduct(server, env);
+  registerCreateCheckout(server, env);
+  registerCompleteCheckout(server, env);
+  registerUpdateCheckout(server, env);
+  registerCancelCheckout(server, env);
 
   return server;
 }
